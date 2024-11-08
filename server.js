@@ -197,6 +197,77 @@ app.get("/searchMerchants", async (req, res) => {
     res.status(500).json({ message: "Failed to search merchants" });
   }
 });
+app.post("/applyLoan", async (req, res) => {
+  const { username, email, loanAmount, merchantName, role } = req.body;
+
+  // Validate that required fields are present
+  if (!username || !email || !loanAmount || !merchantName || !role) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  try {
+    // Add the loan application to Firestore
+    await db.collection("Applications").add({
+      username,
+      email,
+      loanAmount,
+      merchantName,
+      role,
+      status: "Pending",
+      appliedAt: new Date(),
+    });
+
+    res.status(200).json({ message: "Application submitted successfully!" });
+  } catch (error) {
+    console.error("Error saving application:", error.message);
+    res.status(500).json({ error: "Failed to save application" });
+  }
+});
+
+app.post("/getLoans", async (req, res) => {
+  const { username, email, role } = req.body;
+
+  try {
+    const applicationsQuery = await db
+      .collection("Applications")
+      .where("username", "==", username)
+      .where("email", "==", email)
+      .where("role", "==", role)
+      .get();
+
+    const applications = [];
+    applicationsQuery.forEach((doc) => {
+      const data = doc.data();
+      // Convert Firestore Timestamp to a readable date
+      if (data.dateOfApply && data.dateOfApply.toDate) {
+        data.dateOfApply = data.dateOfApply.toDate().toISOString();
+      }
+      applications.push({ id: doc.id, ...data });
+    });
+
+    res.status(200).json(applications);
+  } catch (error) {
+    console.error("Error fetching loans:", error);
+    res.status(500).json({ error: "Failed to fetch loan applications" });
+  }
+});
+
+
+// Withdraw a loan application
+app.post("/withdrawLoan", async (req, res) => {
+  const { loanId } = req.body;
+
+  try {
+    const loanRef = db.collection("Applications").doc(loanId);
+    await loanRef.delete();
+    res.status(200).json({ message: "Loan application withdrawn successfully!" });
+  } catch (error) {
+    console.error("Error withdrawing loan:", error);
+    res.status(500).json({ error: "Failed to withdraw loan" });
+  }
+});
+
+
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
