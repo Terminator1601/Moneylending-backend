@@ -84,14 +84,17 @@ app.get("/test-connection", async (req, res) => {
     });
   }
 });
-
 app.post("/updateProfile", async (req, res) => {
-  const { username, email, userData } = req.body; // Destructure username, email, and userData from request body
+  const { username, email, userData, role } = req.body; // Destructure username, email, userData, and role from request body
 
   try {
-    // Find the document based on username and email
+    // Determine the collection based on the role
+    const collectionName =
+      role === "merchant" ? "MerchantDetails" : "ClientDetails";
+
+    // Find the document based on username and email in the appropriate collection
     const userDoc = await db
-      .collection("ClientDetails")
+      .collection(collectionName)
       .where("username", "==", username)
       .where("email", "==", email)
       .get();
@@ -115,7 +118,8 @@ app.post("/updateProfile", async (req, res) => {
   }
 });
 
-app.get("/getProfile", async (req, res) => {
+// Get profile for client
+app.get("/getClientProfile", async (req, res) => {
   const { username } = req.query;
 
   try {
@@ -124,24 +128,44 @@ app.get("/getProfile", async (req, res) => {
       .where("username", "==", username)
       .get();
     if (userDoc.empty) {
-      return res.status(404).json({ message: "User not found." });
+      return res.status(404).json({ message: "Client not found." });
     }
 
     const userData = userDoc.docs[0].data();
     res.status(200).json(userData);
   } catch (error) {
-    console.error("Error fetching profile data:", error);
-    res.status(500).json({ message: "Failed to fetch profile data" });
+    console.error("Error fetching client profile data:", error);
+    res.status(500).json({ message: "Failed to fetch client profile data" });
   }
 });
 
+// Get profile for merchant
+app.get("/getMerchantProfile", async (req, res) => {
+  const { username } = req.query;
+
+  try {
+    const userDoc = await db
+      .collection("MerchantDetails")
+      .where("username", "==", username)
+      .get();
+    if (userDoc.empty) {
+      return res.status(404).json({ message: "Merchant not found." });
+    }
+
+    const userData = userDoc.docs[0].data();
+    res.status(200).json(userData);
+  } catch (error) {
+    console.error("Error fetching merchant profile data:", error);
+    res.status(500).json({ message: "Failed to fetch merchant profile data" });
+  }
+});
 app.get("/searchMerchants", async (req, res) => {
   const { location, loanAmount, merchantName } = req.query;
 
   try {
     let queryRef = db.collection("MerchantDetails");
 
-    // Perform a union search for any matching field
+    // Create dynamic queries based on the provided search fields
     const locationQuery = location
       ? queryRef.where("location", "==", location)
       : null;
@@ -149,15 +173,14 @@ app.get("/searchMerchants", async (req, res) => {
       ? queryRef.where("loanAmount", "==", loanAmount)
       : null;
     const merchantNameQuery = merchantName
-      ? queryRef.where("merchantName", "==", merchantName)
+      ? queryRef.where("name", "==", merchantName) // Updated to use "name" field
       : null;
 
-    // Collect all queries that are non-null
+    // Collect all non-null queries
     const queries = [locationQuery, loanAmountQuery, merchantNameQuery].filter(
       Boolean
     );
 
-    // Get unique results from Firestore for each matching condition
     let merchantDocs = [];
     for (const query of queries) {
       const snapshot = await query.get();
@@ -168,7 +191,6 @@ app.get("/searchMerchants", async (req, res) => {
       });
     }
 
-    // Respond with matching merchant documents
     res.status(200).json(merchantDocs);
   } catch (error) {
     console.error("Error searching merchants:", error);
