@@ -212,7 +212,7 @@ app.post("/applyLoan", async (req, res) => {
     applicantUsername,
     applicantEmail,
     loanAmount,
-    merchantName,
+    username,
     applicantRole,
   } = req.body;
 
@@ -221,7 +221,7 @@ app.post("/applyLoan", async (req, res) => {
     !applicantUsername ||
     !applicantEmail ||
     !loanAmount ||
-    !merchantName ||
+    !username ||
     !applicantRole
   ) {
     return res.status(400).json({ error: "Missing required fields" });
@@ -233,7 +233,7 @@ app.post("/applyLoan", async (req, res) => {
       applicantUsername,
       applicantEmail,
       loanAmount,
-      merchantName,
+      username,
       applicantRole,
       status: "Pending",
       appliedAt: new Date(),
