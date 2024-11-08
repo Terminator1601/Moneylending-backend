@@ -10,7 +10,8 @@ app.use(express.json());
 
 // Register a new user
 app.post("/register", async (req, res) => {
-  const { email, username, phone, password, role } = req.body;
+  const { email, username, phone, firstName, lastName, password, role } =
+    req.body;
   const collectionName =
     role === "client" ? "ClientDetails" : "MerchantDetails";
 
@@ -25,7 +26,7 @@ app.post("/register", async (req, res) => {
         .json({ message: "Email already registered. Please log in." });
     }
 
-    const newUser = { email, username, phone, password };
+    const newUser = { email, username, firstName, lastName, phone, password };
     await db.collection(collectionName).add(newUser);
     res.status(200).json({ message: "Registration successful!" });
   } catch (error) {
@@ -85,30 +86,40 @@ app.get("/test-connection", async (req, res) => {
   }
 });
 
-app.post("/updateProfile", async (req, res) => {
-  const { username, email, userData, role } = req.body;
 
-  if (!username || !email || !role || !userData) {
+app.post("/updateProfile", async (req, res) => {
+  const { name, userData, phone, firstName, lastName, location, role } = req.body;
+
+  // Validate input
+  if (!name || !userData || !role) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
   try {
-    const collectionName =
-      role === "merchant" ? "MerchantDetails" : "ClientDetails";
+    const collectionName = role === "merchant" ? "MerchantDetails" : "ClientDetails";
+    
+    // Fetch user document
     const userDoc = await db
       .collection(collectionName)
-      .where("username", "==", username)
-      .where("email", "==", email)
+      .where("username", "==", name)
       .get();
 
+    // Check if the user exists
     if (userDoc.empty) {
-      return res
-        .status(404)
-        .json({ error: "User not found or email mismatch" });
+      return res.status(404).json({ error: "User not found" });
     }
 
+    // Update the document with the new data
     const docRef = userDoc.docs[0].ref;
-    await docRef.update(userData);
+    await docRef.update({
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      phone: userData.phone,
+      maritalStatus: userData.maritalStatus,
+      monthlyIncome: userData.monthlyIncome,
+      employmentType: userData.employmentType,
+      location:userData.location,
+    });
 
     res.status(200).json({ message: "Profile updated successfully!" });
   } catch (error) {
@@ -116,6 +127,9 @@ app.post("/updateProfile", async (req, res) => {
     res.status(500).json({ error: "Failed to update profile" });
   }
 });
+
+
+
 // Get profile for client
 app.get("/getClientProfile", async (req, res) => {
   const { username } = req.query;
@@ -196,10 +210,22 @@ app.get("/searchMerchants", async (req, res) => {
   }
 });
 app.post("/applyLoan", async (req, res) => {
-  const { applicantUsername, applicantEmail, loanAmount, merchantName, applicantRole } = req.body;
+  const {
+    applicantUsername,
+    applicantEmail,
+    loanAmount,
+    merchantName,
+    applicantRole,
+  } = req.body;
 
   // Validate that required fields are present
-  if (!applicantUsername || !applicantEmail || !loanAmount || !merchantName || !applicantRole) {
+  if (
+    !applicantUsername ||
+    !applicantEmail ||
+    !loanAmount ||
+    !merchantName ||
+    !applicantRole
+  ) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
@@ -281,7 +307,9 @@ app.post("/getMerchantLoans", async (req, res) => {
       .where("merchantName", "==", merchantName.trim())
       .get();
 
-    console.log(`Found ${applicationsQuery.size} applications for merchant: ${merchantName}`);
+    console.log(
+      `Found ${applicationsQuery.size} applications for merchant: ${merchantName}`
+    );
 
     const applications = [];
     applicationsQuery.forEach((doc) => {
@@ -297,7 +325,6 @@ app.post("/getMerchantLoans", async (req, res) => {
   }
 });
 
-
 app.post("/updateLoanStatus", async (req, res) => {
   const { loanId, status } = req.body;
 
@@ -310,7 +337,6 @@ app.post("/updateLoanStatus", async (req, res) => {
     res.status(500).json({ error: "Failed to update loan status" });
   }
 });
-
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
