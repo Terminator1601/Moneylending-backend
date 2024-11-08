@@ -84,15 +84,17 @@ app.get("/test-connection", async (req, res) => {
     });
   }
 });
+
 app.post("/updateProfile", async (req, res) => {
-  const { username, email, userData, role } = req.body; // Destructure username, email, userData, and role from request body
+  const { username, email, userData, role } = req.body;
+
+  if (!username || !email || !role || !userData) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
 
   try {
-    // Determine the collection based on the role
     const collectionName =
       role === "merchant" ? "MerchantDetails" : "ClientDetails";
-
-    // Find the document based on username and email in the appropriate collection
     const userDoc = await db
       .collection(collectionName)
       .where("username", "==", username)
@@ -100,24 +102,20 @@ app.post("/updateProfile", async (req, res) => {
       .get();
 
     if (userDoc.empty) {
-      // If no document found, return an error
       return res
         .status(404)
         .json({ error: "User not found or email mismatch" });
     }
 
-    // Get the document reference for the first matching document
     const docRef = userDoc.docs[0].ref;
-
-    // Update the document with new userData
     await docRef.update(userData);
+
     res.status(200).json({ message: "Profile updated successfully!" });
   } catch (error) {
     console.error("Error updating profile:", error);
     res.status(500).json({ error: "Failed to update profile" });
   }
 });
-
 // Get profile for client
 app.get("/getClientProfile", async (req, res) => {
   const { username } = req.query;
@@ -198,21 +196,21 @@ app.get("/searchMerchants", async (req, res) => {
   }
 });
 app.post("/applyLoan", async (req, res) => {
-  const { username, email, loanAmount, merchantName, role } = req.body;
+  const { applicantUsername, applicantEmail, loanAmount, merchantName, applicantRole } = req.body;
 
   // Validate that required fields are present
-  if (!username || !email || !loanAmount || !merchantName || !role) {
+  if (!applicantUsername || !applicantEmail || !loanAmount || !merchantName || !applicantRole) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
   try {
     // Add the loan application to Firestore
     await db.collection("Applications").add({
-      username,
-      email,
+      applicantUsername,
+      applicantEmail,
       loanAmount,
       merchantName,
-      role,
+      applicantRole,
       status: "Pending",
       appliedAt: new Date(),
     });
@@ -230,9 +228,9 @@ app.post("/getLoans", async (req, res) => {
   try {
     const applicationsQuery = await db
       .collection("Applications")
-      .where("username", "==", username)
-      .where("email", "==", email)
-      .where("role", "==", role)
+      .where("applicantUsername", "==", username)
+      .where("applicantEmail", "==", email)
+      .where("applicantRole", "==", role)
       .get();
 
     const applications = [];
@@ -252,7 +250,6 @@ app.post("/getLoans", async (req, res) => {
   }
 });
 
-
 // Withdraw a loan application
 app.post("/withdrawLoan", async (req, res) => {
   const { loanId } = req.body;
@@ -260,13 +257,59 @@ app.post("/withdrawLoan", async (req, res) => {
   try {
     const loanRef = db.collection("Applications").doc(loanId);
     await loanRef.delete();
-    res.status(200).json({ message: "Loan application withdrawn successfully!" });
+    res
+      .status(200)
+      .json({ message: "Loan application withdrawn successfully!" });
   } catch (error) {
     console.error("Error withdrawing loan:", error);
     res.status(500).json({ error: "Failed to withdraw loan" });
   }
 });
 
+app.post("/getMerchantLoans", async (req, res) => {
+  const { merchantName } = req.body;
+
+  console.log("Received request to fetch loans for merchant:", merchantName);
+
+  if (!merchantName) {
+    return res.status(400).json({ error: "Merchant name is required" });
+  }
+
+  try {
+    const applicationsQuery = await db
+      .collection("Applications")
+      .where("merchantName", "==", merchantName.trim())
+      .get();
+
+    console.log(`Found ${applicationsQuery.size} applications for merchant: ${merchantName}`);
+
+    const applications = [];
+    applicationsQuery.forEach((doc) => {
+      const data = doc.data();
+      console.log("Fetched application:", data);
+      applications.push({ id: doc.id, ...data });
+    });
+
+    res.status(200).json(applications);
+  } catch (error) {
+    console.error("Error fetching merchant loans:", error);
+    res.status(500).json({ error: "Failed to fetch applications" });
+  }
+});
+
+
+app.post("/updateLoanStatus", async (req, res) => {
+  const { loanId, status } = req.body;
+
+  try {
+    const loanRef = db.collection("Applications").doc(loanId);
+    await loanRef.update({ status });
+    res.status(200).json({ message: "Loan status updated successfully!" });
+  } catch (error) {
+    console.error("Error updating loan status:", error);
+    res.status(500).json({ error: "Failed to update loan status" });
+  }
+});
 
 
 const PORT = process.env.PORT || 5000;
