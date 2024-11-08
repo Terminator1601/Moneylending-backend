@@ -171,37 +171,31 @@ app.get("/getMerchantProfile", async (req, res) => {
     res.status(500).json({ message: "Failed to fetch merchant profile data" });
   }
 });
+
+
 app.get("/searchMerchants", async (req, res) => {
-  const { location, loanAmount, merchantName } = req.query;
+  const { location, loanAmount, username } = req.query;
 
   try {
     let queryRef = db.collection("MerchantDetails");
 
-    // Create dynamic queries based on the provided search fields
-    const locationQuery = location
-      ? queryRef.where("location", "==", location)
-      : null;
-    const loanAmountQuery = loanAmount
-      ? queryRef.where("loanAmount", "==", loanAmount)
-      : null;
-    const merchantNameQuery = merchantName
-      ? queryRef.where("name", "==", merchantName) // Updated to use "name" field
-      : null;
-
-    // Collect all non-null queries
-    const queries = [locationQuery, loanAmountQuery, merchantNameQuery].filter(
-      Boolean
-    );
-
-    let merchantDocs = [];
-    for (const query of queries) {
-      const snapshot = await query.get();
-      snapshot.forEach((doc) => {
-        if (!merchantDocs.some((existingDoc) => existingDoc.id === doc.id)) {
-          merchantDocs.push({ id: doc.id, ...doc.data() });
-        }
-      });
+    // Apply filters conditionally
+    if (location) {
+      queryRef = queryRef.where("location", "==", location);
     }
+    if (loanAmount) {
+      queryRef = queryRef.where("loanAmount", "==", loanAmount);
+    }
+    if (username) {
+      queryRef = queryRef.where("username", "==", username);
+    }
+
+    const snapshot = await queryRef.get();
+    const merchantDocs = [];
+
+    snapshot.forEach((doc) => {
+      merchantDocs.push({ id: doc.id, ...doc.data() });
+    });
 
     res.status(200).json(merchantDocs);
   } catch (error) {
@@ -209,6 +203,10 @@ app.get("/searchMerchants", async (req, res) => {
     res.status(500).json({ message: "Failed to search merchants" });
   }
 });
+
+
+
+
 app.post("/applyLoan", async (req, res) => {
   const {
     applicantUsername,
